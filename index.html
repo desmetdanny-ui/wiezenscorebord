@@ -121,14 +121,21 @@
   }
   .decl-chip.selected{background:var(--wine);color:#fff;border-color:var(--wine);}
 
+  .edit-note{
+    background:#f7ece7;border:1px solid var(--gold);border-radius:8px;
+    padding:8px 12px;margin-bottom:12px;font-size:13px;
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+  }
+
   .rounds-list{margin-top:14px;max-height:220px;overflow-y:auto;}
   .round-item{
     display:flex;justify-content:space-between;font-size:13px;
-    padding:8px 4px;border-bottom:1px solid #f0e6d2;
+    padding:8px 4px;border-bottom:1px solid #f0e6d2;gap:10px;
   }
   .round-item .desc{color:#6b5d4f;}
   .round-item .deltas{font-weight:bold;color:var(--wine-dark);white-space:nowrap;}
-  .round-item .del{color:#c0392b;cursor:pointer;margin-left:8px;font-size:12px;}
+  .round-item .del{color:#c0392b;cursor:pointer;margin-left:8px;font-size:13px;}
+  .round-item .edit{color:var(--wine);cursor:pointer;margin-left:8px;font-size:13px;}
 
   .history-game{
     background:#fbf5e9;border-radius:8px;padding:12px 14px;margin-bottom:10px;
@@ -137,6 +144,8 @@
   .history-game .hdate{font-size:12px;color:#a08a6a;margin-bottom:6px;}
   .history-game .hrow{display:flex;justify-content:space-between;font-size:14px;padding:2px 0;}
   .history-game .hrow.first{font-weight:bold;color:var(--wine-dark);}
+  .history-game .verloop{margin-top:10px;}
+  .history-game .verloop .round-item .desc{line-height:1.4;}
 
   .empty-msg{color:#a08a6a;font-size:13px;text-align:center;padding:20px 0;}
 
@@ -212,8 +221,13 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="roundFormCard">
       <h2>Nieuwe ronde</h2>
+
+      <div class="edit-note hidden" id="roundEditNote">
+        <span>Je bewerkt een bestaande ronde.</span>
+        <button class="btn small secondary" id="btnCancelEdit" type="button">Annuleren</button>
+      </div>
 
       <label>Contract</label>
       <select id="contractType">
@@ -255,6 +269,11 @@
           <option value="mislukt">Mislukt</option>
         </select>
       </div>
+
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+        <input type="checkbox" id="dubbelToggle" style="width:auto;">
+        Dubbel geteld (pas)
+      </label>
 
       <div class="btn-row">
         <button class="btn full" id="btnVoegToe">Ronde toevoegen</button>
@@ -392,14 +411,6 @@ const SETTINGS_LABELS = [
   ['soloslim','Soloslim'],
 ];
 
-function loadJSON(key, fallback){
-  try{
-    const raw = localStorage.getItem(key);
-    if(!raw) return fallback;
-    return JSON.parse(raw);
-  }catch(e){ return fallback; }
-}
-
 const DEFAULT_STATE = {
   players: DEFAULT_PLAYERS.slice(),
   date: new Date().toISOString().slice(0,10),
@@ -411,6 +422,7 @@ let settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 let history = [];
 let firestoreReady = false;
+let editingIndex = null;
 
 /* Live synchronisatie: elke wijziging op eender welk toestel komt hier automatisch binnen */
 onSnapshot(stateDocRef, (snap) => {
@@ -476,9 +488,9 @@ function linearDelta(cfg, tricks){
 }
 
 function computeRound(round){
-  // round: {type, declarers:[idx,...], tricks, abondanceTricks, abondanceTroef, fixedResult}
+  // round: {type, declarers:[idx,...], tricks, abondanceTricks, abondanceTroef, fixedResult, dubbel}
   const n = state.players.length;
-  let deltas = [0,0,0,0];
+  let deltas = [0,0,0,0].slice(0, n);
 
   if(round.type === 'vraagMeegaan' || round.type === 'troel'){
     const cfg = settings.vraagMeegaan;
@@ -532,21 +544,36 @@ function computeRound(round){
       else deltas[i] -= sign * base;
     }
   }
+
+  if(round.dubbel){
+    deltas = deltas.map(d => d * 2);
+  }
+
   return deltas;
 }
 
 function contractLabel(round){
   const names = round.declarers.map(i => state.players[i] || ('Speler '+(i+1)));
+  let label;
   switch(round.type){
-    case 'vraagMeegaan': return `Vraag & Meegaan (${names.join(' + ')}) — ${round.tricks} slagen`;
-    case 'troel': return `Troel (${names.join(' + ')}) — ${round.tricks} slagen`;
-    case 'solo': return `Alleen/Solo (${names[0]}) — ${round.tricks} slagen`;
-    case 'abondance': return `Abondance ${round.abondanceTricks}${round.abondanceTroef?' in troef':''} (${names[0]}) — ${round.tricks} slagen`;
-    case 'miserie': return `Miserie (${names[0]}) — ${round.fixedResult}`;
-    case 'miserieTafel': return `Miserie op tafel (${names[0]}) — ${round.fixedResult}`;
-    case 'soloslim': return `Soloslim (${names[0]}) — ${round.fixedResult}`;
-    default: return round.type;
+    case 'vraagMeegaan': label = `Vraag & Meegaan (${names.join(' + ')}) — ${round.tricks} slagen`; break;
+    case 'troel': label = `Troel (${names.join(' + ')}) — ${round.tricks} slagen`; break;
+    case 'solo': label = `Alleen/Solo (${names[0]}) — ${round.tricks} slagen`; break;
+    case 'abondance': label = `Abondance ${round.abondanceTricks}${round.abondanceTroef?' in troef':''} (${names[0]}) — ${round.tricks} slagen`; break;
+    case 'miserie': label = `Miserie (${names[0]}) — ${round.fixedResult}`; break;
+    case 'miserieTafel': label = `Miserie op tafel (${names[0]}) — ${round.fixedResult}`; break;
+    case 'soloslim': label = `Soloslim (${names[0]}) — ${round.fixedResult}`; break;
+    default: label = round.type;
   }
+  if(round.dubbel) label += ' · dubbel geteld';
+  return label;
+}
+
+function recomputeTotals(){
+  const n = state.players.length;
+  const totals = new Array(n).fill(0);
+  state.rounds.forEach(r => { r.deltas.forEach((d,i) => { totals[i] += d; }); });
+  state.totals = totals;
 }
 
 /* ============ UI: SPEL TAB ============ */
@@ -557,6 +584,9 @@ const tricksInput = document.getElementById('tricksInput');
 const abondanceOptions = document.getElementById('abondanceOptions');
 const fixedResultRow = document.getElementById('fixedResultRow');
 const declLabel = document.getElementById('declLabel');
+const dubbelToggle = document.getElementById('dubbelToggle');
+const btnVoegToe = document.getElementById('btnVoegToe');
+const roundEditNote = document.getElementById('roundEditNote');
 
 let selectedDeclarers = [];
 
@@ -620,7 +650,55 @@ function updateFormVisibility(){
 
 contractTypeEl.addEventListener('change', updateFormVisibility);
 
-document.getElementById('btnVoegToe').addEventListener('click', () => {
+function resetRoundFormState(){
+  editingIndex = null;
+  btnVoegToe.textContent = 'Ronde toevoegen';
+  roundEditNote.classList.add('hidden');
+  selectedDeclarers = [];
+  dubbelToggle.checked = false;
+  renderDeclPicker();
+}
+
+document.getElementById('btnCancelEdit').addEventListener('click', resetRoundFormState);
+
+function editRound(idx){
+  const round = state.rounds[idx];
+  if(!round) return;
+  editingIndex = idx;
+  contractTypeEl.value = round.type;
+  updateFormVisibility();
+  selectedDeclarers = round.declarers.slice();
+  renderDeclPicker();
+  dubbelToggle.checked = !!round.dubbel;
+  if(round.type === 'abondance'){
+    document.getElementById('abondanceTricks').value = round.abondanceTricks;
+    document.getElementById('abondanceTroef').checked = !!round.abondanceTroef;
+  }
+  if(contractIsFixed(round.type)){
+    document.getElementById('fixedResult').value = round.fixedResult;
+  } else {
+    tricksInput.value = round.tricks;
+  }
+  btnVoegToe.textContent = 'Ronde bijwerken';
+  roundEditNote.classList.remove('hidden');
+  document.getElementById('roundFormCard').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function deleteRound(idx){
+  showConfirm('Deze ronde verwijderen? De standen worden herberekend.', () => {
+    state.rounds.splice(idx, 1);
+    if(editingIndex === idx){
+      resetRoundFormState();
+    } else if(editingIndex !== null && idx < editingIndex){
+      editingIndex--;
+    }
+    recomputeTotals();
+    persistState();
+    renderAll();
+  });
+}
+
+btnVoegToe.addEventListener('click', () => {
   const type = contractTypeEl.value;
   const needTwo = contractNeedsTwoPlayers(type);
   if(needTwo && selectedDeclarers.length !== 2){
@@ -631,12 +709,11 @@ document.getElementById('btnVoegToe').addEventListener('click', () => {
     showToast('Kies 1 speler voor dit contract.');
     return;
   }
-  const round = { type, declarers: selectedDeclarers.slice() };
+  const round = { type, declarers: selectedDeclarers.slice(), dubbel: dubbelToggle.checked };
   if(type === 'abondance'){
     round.abondanceTricks = parseInt(document.getElementById('abondanceTricks').value, 10);
     round.abondanceTroef = document.getElementById('abondanceTroef').checked;
-    round.tricks = round.abondanceTricks; // for abondance we just record intended vs made below
-    // ask made tricks via a prompt-free approach: reuse tricksInput hidden -> use fixedResult style instead
+    round.tricks = round.abondanceTricks;
   }
   if(contractIsFixed(type)){
     round.fixedResult = document.getElementById('fixedResult').value;
@@ -649,16 +726,23 @@ document.getElementById('btnVoegToe').addEventListener('click', () => {
 
   const deltas = computeRound(round);
   round.deltas = deltas;
-  state.rounds.push(round);
-  state.totals = state.totals.map((t,i) => t + deltas[i]);
+
+  if(editingIndex !== null){
+    state.rounds[editingIndex] = round;
+    resetRoundFormState();
+  } else {
+    state.rounds.push(round);
+  }
+  recomputeTotals();
   persistState();
   renderAll();
 });
 
 document.getElementById('btnUndo').addEventListener('click', () => {
   if(state.rounds.length === 0) return;
-  const last = state.rounds.pop();
-  state.totals = state.totals.map((t,i) => t - last.deltas[i]);
+  state.rounds.pop();
+  if(editingIndex === state.rounds.length) resetRoundFormState();
+  recomputeTotals();
   persistState();
   renderAll();
 });
@@ -671,15 +755,25 @@ document.getElementById('btnEindSpel').addEventListener('click', () => {
   showConfirm('Dit spel afsluiten en de eindstand opslaan in het klassement?', async () => {
     const ranking = state.players.map((name,i) => ({name, score: state.totals[i]}))
       .sort((a,b) => b.score - a.score);
+
+    // scoreverloop: lopende stand na elke ronde, zodat dit later opnieuw te bekijken is
+    const running = state.players.map(() => 0);
+    const progression = state.rounds.map(r => {
+      r.deltas.forEach((d,i) => { running[i] += d; });
+      return { label: contractLabel(r), deltas: r.deltas.slice(), totals: running.slice() };
+    });
+
     await addFinishedGame({
       date: state.date,
       players: state.players.slice(),
       ranking,
-      rounds: state.rounds.length
+      rounds: state.rounds.length,
+      progression
     });
     state.rounds = [];
     state.totals = state.players.map(()=>0);
     state.date = new Date().toISOString().slice(0,10);
+    resetRoundFormState();
     await persistState();
     setActiveTab('klassement');
     showToast('Spel opgeslagen in het klassement.');
@@ -712,9 +806,15 @@ function renderRoundsList(){
     const div = document.createElement('div');
     div.className = 'round-item';
     const deltaStr = round.declarers.map(i => `${state.players[i]}: ${round.deltas[i]>0?'+':''}${round.deltas[i]}`).join(', ');
-    div.innerHTML = `<span class="desc">${contractLabel(round)}</span><span class="deltas">${deltaStr}</span>`;
+    div.innerHTML = `<span class="desc">${idx+1}. ${contractLabel(round)}</span><span class="deltas">${deltaStr} <span class="edit" data-idx="${idx}" title="Bewerken">✎</span><span class="del" data-idx="${idx}" title="Verwijderen">✕</span></span>`;
     container.appendChild(div);
   });
+  container.querySelectorAll('.del').forEach(el => el.addEventListener('click', (e) => {
+    deleteRound(parseInt(e.currentTarget.dataset.idx, 10));
+  }));
+  container.querySelectorAll('.edit').forEach(el => el.addEventListener('click', (e) => {
+    editRound(parseInt(e.currentTarget.dataset.idx, 10));
+  }));
 }
 
 function renderStickyScores(){
@@ -753,6 +853,20 @@ document.querySelectorAll('.tab-btn').forEach(b => {
 });
 
 /* ============ KLASSEMENT TAB ============ */
+function renderProgressionHTML(game){
+  if(!game.progression || game.progression.length === 0){
+    return '<div class="empty-msg">Geen scoreverloop beschikbaar voor deze partij.</div>';
+  }
+  let html = '<div class="rounds-list" style="max-height:280px;">';
+  game.progression.forEach((p, i) => {
+    const deltaStr = game.players.map((name,pi) => `${name}: ${p.deltas[pi]>0?'+':''}${p.deltas[pi]}`).join(', ');
+    const totalStr = game.players.map((name,pi) => `${name} ${p.totals[pi]>0?'+':''}${p.totals[pi]}`).join(' · ');
+    html += `<div class="round-item"><span class="desc">${i+1}. ${p.label}<br><span style="font-size:11px;color:#a08a6a;">stand: ${totalStr}</span></span><span class="deltas">${deltaStr}</span></div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
 function renderHistory(){
   const container = document.getElementById('gamesHistory');
   if(history.length === 0){
@@ -768,8 +882,25 @@ function renderHistory(){
     let rowsHtml = game.ranking.map((r, i) =>
       `<div class="hrow ${i===0?'first':''}"><span>#${i+1} ${r.name}</span><span>${r.score>0?'+':''}${r.score}</span></div>`
     ).join('');
-    div.innerHTML = `<div class="hdate">${dateStr} · ${game.rounds} rondes</div>${rowsHtml}`;
+    div.innerHTML = `<div class="hdate">${dateStr} · ${game.rounds} rondes</div>${rowsHtml}
+      <div class="btn-row"><button class="btn secondary small btn-verloop" data-id="${game.id}">Scoreverloop tonen</button></div>
+      <div class="verloop hidden" id="verloop-${game.id}"></div>`;
     container.appendChild(div);
+  });
+  container.querySelectorAll('.btn-verloop').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const box = document.getElementById('verloop-'+id);
+      const game = history.find(g => g.id === id);
+      if(box.classList.contains('hidden')){
+        box.innerHTML = renderProgressionHTML(game);
+        box.classList.remove('hidden');
+        btn.textContent = 'Scoreverloop verbergen';
+      } else {
+        box.classList.add('hidden');
+        btn.textContent = 'Scoreverloop tonen';
+      }
+    });
   });
 }
 
