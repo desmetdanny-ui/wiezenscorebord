@@ -270,10 +270,9 @@
         </select>
       </div>
 
-      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
-        <input type="checkbox" id="dubbelToggle" style="width:auto;">
-        Dubbel geteld (pas)
-      </label>
+      <label style="margin-top:12px;">Aantal keer 'pas' (dubbel geteld)</label>
+      <input type="number" id="dubbelCount" min="0" max="6" value="0">
+      <p class="settings-note" style="margin-top:4px;">Elke 'pas' verdubbelt de punten van deze ronde opnieuw: 1x pas = ×2, 2x pas = ×4, 3x pas = ×8, ...</p>
 
       <div class="btn-row">
         <button class="btn full" id="btnVoegToe">Ronde toevoegen</button>
@@ -545,8 +544,9 @@ function computeRound(round){
     }
   }
 
-  if(round.dubbel){
-    deltas = deltas.map(d => d * 2);
+  if(round.dubbelCount){
+    const factor = Math.pow(2, round.dubbelCount);
+    deltas = deltas.map(d => d * factor);
   }
 
   return deltas;
@@ -565,7 +565,7 @@ function contractLabel(round){
     case 'soloslim': label = `Soloslim (${names[0]}) — ${round.fixedResult}`; break;
     default: label = round.type;
   }
-  if(round.dubbel) label += ' · dubbel geteld';
+  if(round.dubbelCount) label += ` · pas x${round.dubbelCount} (×${Math.pow(2, round.dubbelCount)})`;
   return label;
 }
 
@@ -584,7 +584,7 @@ const tricksInput = document.getElementById('tricksInput');
 const abondanceOptions = document.getElementById('abondanceOptions');
 const fixedResultRow = document.getElementById('fixedResultRow');
 const declLabel = document.getElementById('declLabel');
-const dubbelToggle = document.getElementById('dubbelToggle');
+const dubbelCountInput = document.getElementById('dubbelCount');
 const btnVoegToe = document.getElementById('btnVoegToe');
 const roundEditNote = document.getElementById('roundEditNote');
 
@@ -655,7 +655,7 @@ function resetRoundFormState(){
   btnVoegToe.textContent = 'Ronde toevoegen';
   roundEditNote.classList.add('hidden');
   selectedDeclarers = [];
-  dubbelToggle.checked = false;
+  dubbelCountInput.value = 0;
   renderDeclPicker();
 }
 
@@ -669,7 +669,7 @@ function editRound(idx){
   updateFormVisibility();
   selectedDeclarers = round.declarers.slice();
   renderDeclPicker();
-  dubbelToggle.checked = !!round.dubbel;
+  dubbelCountInput.value = round.dubbelCount || 0;
   if(round.type === 'abondance'){
     document.getElementById('abondanceTricks').value = round.abondanceTricks;
     document.getElementById('abondanceTroef').checked = !!round.abondanceTroef;
@@ -709,7 +709,7 @@ btnVoegToe.addEventListener('click', () => {
     showToast('Kies 1 speler voor dit contract.');
     return;
   }
-  const round = { type, declarers: selectedDeclarers.slice(), dubbel: dubbelToggle.checked };
+  const round = { type, declarers: selectedDeclarers.slice(), dubbelCount: parseInt(dubbelCountInput.value, 10) || 0 };
   if(type === 'abondance'){
     round.abondanceTricks = parseInt(document.getElementById('abondanceTricks').value, 10);
     round.abondanceTroef = document.getElementById('abondanceTroef').checked;
