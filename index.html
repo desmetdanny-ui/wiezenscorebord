@@ -153,7 +153,16 @@
   .settings-grid input{width:70px;text-align:center;}
   .settings-note{font-size:11px;color:#a08a6a;margin-top:10px;line-height:1.5;}
 
-  .hidden{display:none;}
+  .seg{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+  .seg-btn{background:#fff;border:1px solid var(--gold);color:var(--wine-dark);padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;font-family:inherit;}
+  .seg-btn.active{background:var(--wine);color:#fff;border-color:var(--wine);}
+  .res-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px;font-size:14px;}
+  .res-row select{width:auto;min-width:120px;}
+  .winner{background:#f1e4bf;border:1px solid var(--gold);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-weight:bold;color:var(--wine-dark);text-align:center;}
+  .settings-head{grid-column:1/-1;font-weight:bold;color:var(--wine);border-bottom:2px solid var(--gold);padding-bottom:4px;margin-top:10px;}
+  .vsplit{font-size:11px;color:#a08a6a;font-weight:normal;display:block;text-align:right;}
+
+  .hidden{display:none !important;}
   .btn-row{display:flex;gap:10px;margin-top:14px;}
 
   /* eigen modal i.p.v. browser confirm()/alert() — werkt wel binnen ingesloten Sites-blokken */
@@ -180,7 +189,7 @@
   <header>
     <div class="kaart">♠ ♥ ♦ ♣</div>
     <h1>Wiezen Scorebord</h1>
-    <p class="subtitle">Officiële puntentelling · Belgisch Kampioenschap Wiezen (IWWA)</p>
+    <p class="subtitle">Wiezen en kleurenwiezen · één klassement per jaar</p>
   </header>
 
   <div class="linkbar">
@@ -229,6 +238,12 @@
         <button class="btn small secondary" id="btnCancelEdit" type="button">Annuleren</button>
       </div>
 
+      <label>Spel</label>
+      <div class="seg" id="variantSeg">
+        <button type="button" class="seg-btn active" data-variant="wiezen">Wiezen</button>
+        <button type="button" class="seg-btn" data-variant="kleuren">Kleurenwiezen</button>
+      </div>
+
       <label>Contract</label>
       <select id="contractType">
         <option value="vraagMeegaan">Vraag &amp; Meegaan (2 spelers, 8 slagen)</option>
@@ -254,6 +269,11 @@
         </label>
       </div>
 
+      <div id="kBidRow" class="hidden">
+        <label>Bod (aantal slagen)</label>
+        <select id="kBid"></select>
+      </div>
+
       <label id="declLabel">Wie speelt/spelen dit contract?</label>
       <div class="decl-picker" id="declPicker"></div>
 
@@ -270,9 +290,14 @@
         </select>
       </div>
 
-      <label style="margin-top:12px;">Aantal keer 'pas' (dubbel geteld)</label>
+      <div id="kResultsRow" class="hidden">
+        <label>Resultaat per speler</label>
+        <div id="kResults"></div>
+      </div>
+
+      <label style="margin-top:12px;" id="dubbelLabel">Aantal keer 'pas' (dubbel geteld)</label>
       <input type="number" id="dubbelCount" min="0" max="6" value="0">
-      <p class="settings-note" style="margin-top:4px;">Elke 'pas' verdubbelt de punten van deze ronde opnieuw: 1x pas = ×2, 2x pas = ×4, 3x pas = ×8, ...</p>
+      <p class="settings-note" style="margin-top:4px;" id="dubbelNote">Elke 'pas' verdubbelt de punten van deze ronde opnieuw: 1x pas = ×2, 2x pas = ×4, 3x pas = ×8, ...</p>
 
       <div class="btn-row">
         <button class="btn full" id="btnVoegToe">Ronde toevoegen</button>
@@ -288,7 +313,9 @@
   <!-- KLASSEMENT TAB -->
   <div id="tab-klassement" class="hidden">
     <div class="card">
-      <h2>Totaalklassement (alle partijen)</h2>
+      <h2 id="overallTitle">Klassement</h2>
+      <div class="date-row"><label for="yearSelect">Jaar</label><select id="yearSelect" style="max-width:170px"></select></div>
+      <div id="winnerBanner"></div>
       <div class="standings" id="overallStandings"></div>
     </div>
     <div class="card">
@@ -315,6 +342,12 @@
         dubbel zo zware straf per onderslag bij mislukking, zoals in het officiële reglement).
         Voor Abondance, Miserie, Miserie op tafel en Soloslim gelden vaste puntenbedragen; deze verschillen
         soms licht per regio of club, dus pas ze hier gerust aan aan jullie eigen afspraken.
+      </p>
+      <p class="settings-note">
+        Kleurenwiezen volgt de tabel van Whisthub en pagat.com. Teamcontracten (vraag &amp; meegaan, troel): beide
+        partners krijgen de waarde, de tegenstanders het omgekeerde. Solo, abondance, miserie, piccolo en solo slim:
+        de solist krijgt 3 keer de waarde, elke tegenstander één keer het omgekeerde. Wiezen en kleurenwiezen tellen
+        samen mee in hetzelfde klassement.
       </p>
     </div>
   </div>
@@ -387,10 +420,21 @@ const DEFAULT_SETTINGS = {
   abondance12: 13,
   miserie: 10,
   miserieTafel: 20,
-  soloslim: 15
+  soloslim: 15,
+  kleuren: {
+    accept: {8:8, 9:11, 10:14, 11:17, 12:20, 13:23},
+    accept13win: 30,
+    acceptUnder: 3,
+    solo: {5:3, 6:4, 7:5, 8:7},
+    soloOver: 1, soloUnder: 1, soloCap: 8,
+    abondance: {9:10, 10:15, 11:20, 12:30},
+    fixed: {kleine:6, grote:12, open:24, piccolo:8, troel:16, troel13:30, slim:60},
+    troelMin: 8
+  }
 };
 
 const SETTINGS_LABELS = [
+  ['---','Wiezen (IWWA)'],
   ['vraagMeegaan.base','Vraag & Meegaan – basispunt bij 8 slagen'],
   ['vraagMeegaan.over','Vraag & Meegaan – punt per overslag'],
   ['vraagMeegaan.failBase','Vraag & Meegaan – basisstraf bij mislukking'],
@@ -408,6 +452,34 @@ const SETTINGS_LABELS = [
   ['miserie','Miserie'],
   ['miserieTafel','Miserie op tafel (open)'],
   ['soloslim','Soloslim'],
+  ['---','Kleurenwiezen (Whisthub en pagat.com)'],
+  ['kleuren.accept.8','Vraag & meegaan 8 slagen, gehaald'],
+  ['kleuren.accept.9','Vraag & meegaan 9 slagen, gehaald'],
+  ['kleuren.accept.10','Vraag & meegaan 10 slagen, gehaald'],
+  ['kleuren.accept.11','Vraag & meegaan 11 slagen, gehaald'],
+  ['kleuren.accept.12','Vraag & meegaan 12 slagen, gehaald'],
+  ['kleuren.accept13win','Vraag & meegaan 13 slagen, gehaald'],
+  ['kleuren.accept.13','Vraag & meegaan 13 slagen, basis bij mislukking'],
+  ['kleuren.acceptUnder','Vraag & meegaan: extra straf per onderslag'],
+  ['kleuren.solo.5','Solo 5'],
+  ['kleuren.solo.6','Solo 6'],
+  ['kleuren.solo.7','Solo 7'],
+  ['kleuren.solo.8','Solo 8'],
+  ['kleuren.soloOver','Solo: punt per overslag'],
+  ['kleuren.soloCap','Solo: overslagen tellen tot (slagen)'],
+  ['kleuren.soloUnder','Solo: extra straf per onderslag'],
+  ['kleuren.abondance.9','Abondance 9'],
+  ['kleuren.abondance.10','Abondance 10'],
+  ['kleuren.abondance.11','Abondance 11'],
+  ['kleuren.abondance.12','Abondance 12'],
+  ['kleuren.fixed.kleine','Kleine miserie'],
+  ['kleuren.fixed.piccolo','Piccolo'],
+  ['kleuren.fixed.troel','Troel'],
+  ['kleuren.fixed.troel13','Troel bij 13 slagen'],
+  ['kleuren.troelMin','Troel: minimum aantal slagen'],
+  ['kleuren.fixed.grote','Grote miserie'],
+  ['kleuren.fixed.open','Open miserie'],
+  ['kleuren.fixed.slim','Solo slim'],
 ];
 
 const DEFAULT_STATE = {
@@ -434,7 +506,7 @@ onSnapshot(stateDocRef, (snap) => {
 }, (err) => { console.error('state sync error', err); });
 
 onSnapshot(settingsDocRef, (snap) => {
-  settings = Object.assign({}, DEFAULT_SETTINGS, snap.exists() ? snap.data() : {});
+  settings = mergeSettings(snap.exists() ? snap.data() : {});
   renderSettings();
   renderAll();
 }, (err) => { console.error('settings sync error', err); });
@@ -475,6 +547,72 @@ function setPath(obj, path, val){
   o[parts[parts.length-1]] = val;
 }
 
+function mergeSettings(saved){
+  const out = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  (function m(t, src){
+    for(const k in src){
+      if(src[k] && typeof src[k] === 'object' && !Array.isArray(src[k])){ t[k] = t[k] || {}; m(t[k], src[k]); }
+      else t[k] = src[k];
+    }
+  })(out, saved || {});
+  return out;
+}
+
+/* ---- Kleurenwiezen ---- */
+const KTYPES = {
+  k_accept:    {kind:'team', min:8, max:13},
+  k_solo:      {kind:'solo', min:5, max:8},
+  k_abondance: {kind:'solo', min:9, max:12},
+  k_troel:     {kind:'team'},
+  k_kleine:    {kind:'pf'},
+  k_grote:     {kind:'pf'},
+  k_open:      {kind:'pf'},
+  k_piccolo:   {kind:'pf'},
+  k_slim:      {kind:'pf1'}
+};
+const KFIXED = {k_kleine:'kleine', k_grote:'grote', k_open:'open', k_piccolo:'piccolo'};
+
+function computeKleuren(round){
+  const T = settings.kleuren;
+  const n = state.players.length;
+  const deltas = new Array(n).fill(0);
+  const all = [...Array(n).keys()];
+  const others = set => all.filter(i => !set.includes(i));
+  const k = +round.tricks, N = +round.N;
+  const team = X => { round.declarers.forEach(i => deltas[i] += X); others(round.declarers).forEach(i => deltas[i] -= X); };
+  const solo = (p, X) => { deltas[p] += 3 * X; others([p]).forEach(i => deltas[i] -= X); };
+  switch(round.type){
+    case 'k_accept': {
+      const X = k >= N ? (k === 13 ? T.accept13win : T.accept[k]) : -(T.accept[N] + T.acceptUnder * (N - k));
+      team(X); break;
+    }
+    case 'k_troel': {
+      const X = k >= T.troelMin ? (k === 13 ? T.fixed.troel13 : T.fixed.troel) : -T.fixed.troel;
+      team(X); break;
+    }
+    case 'k_solo': {
+      const X = k >= N ? T.solo[N] + (Math.min(k, T.soloCap) - N) * T.soloOver : -(T.solo[N] + T.soloUnder * (N - k));
+      solo(round.declarers[0], X); break;
+    }
+    case 'k_abondance': {
+      const X = k >= N ? T.abondance[Math.min(k, 12)] : -T.abondance[N];
+      solo(round.declarers[0], X); break;
+    }
+    case 'k_slim': {
+      const v = T.fixed.slim;
+      solo(round.declarers[0], round.fixedResult === 'gemaakt' ? v : -v); break;
+    }
+    default: {
+      const v = T.fixed[KFIXED[round.type]] || 0;
+      round.declarers.forEach(p => {
+        const ok = !(round.results && round.results[p] === 'mislukt');
+        solo(p, ok ? v : -v);
+      });
+    }
+  }
+  return deltas;
+}
+
 // Returns per-declarer delta for linear contracts (vraagMeegaan/solo)
 function linearDelta(cfg, tricks){
   let delta;
@@ -491,7 +629,10 @@ function computeRound(round){
   const n = state.players.length;
   let deltas = [0,0,0,0].slice(0, n);
 
-  if(round.type === 'vraagMeegaan' || round.type === 'troel'){
+  if(round.variant === 'kleuren'){
+    deltas = computeKleuren(round);
+  }
+  else if(round.type === 'vraagMeegaan' || round.type === 'troel'){
     const cfg = settings.vraagMeegaan;
     let d = linearDelta(cfg, round.tricks);
     if(round.type === 'troel') d *= settings.troelMultiplier;
@@ -563,6 +704,16 @@ function contractLabel(round){
     case 'miserie': label = `Miserie (${names[0]}) — ${round.fixedResult}`; break;
     case 'miserieTafel': label = `Miserie op tafel (${names[0]}) — ${round.fixedResult}`; break;
     case 'soloslim': label = `Soloslim (${names[0]}) — ${round.fixedResult}`; break;
+    case 'k_accept': label = `Kleurenwiezen: vraag & meegaan ${round.N} (${names.join(' + ')}) — ${round.tricks} slagen`; break;
+    case 'k_troel': label = `Kleurenwiezen: troel (${names.join(' + ')}) — ${round.tricks} slagen`; break;
+    case 'k_solo': label = `Kleurenwiezen: solo ${round.N} (${names[0]}) — ${round.tricks} slagen`; break;
+    case 'k_abondance': label = `Kleurenwiezen: abondance ${round.N} (${names[0]}) — ${round.tricks} slagen`; break;
+    case 'k_slim': label = `Kleurenwiezen: solo slim (${names[0]}) — ${round.fixedResult}`; break;
+    case 'k_kleine': case 'k_grote': case 'k_open': case 'k_piccolo': {
+      const nm = {k_kleine:'kleine miserie', k_grote:'grote miserie', k_open:'open miserie', k_piccolo:'piccolo'}[round.type];
+      label = `Kleurenwiezen: ${nm} (` + round.declarers.map(i => (state.players[i] || '?') + ' ' + ((round.results && round.results[i]) || 'gemaakt')).join(', ') + ')';
+      break;
+    }
     default: label = round.type;
   }
   if(round.dubbelCount) label += ` · pas x${round.dubbelCount} (×${Math.pow(2, round.dubbelCount)})`;
@@ -589,9 +740,46 @@ const btnVoegToe = document.getElementById('btnVoegToe');
 const roundEditNote = document.getElementById('roundEditNote');
 
 let selectedDeclarers = [];
+let variant = 'wiezen';
+let kResultState = {};
+const kBidRow = document.getElementById('kBidRow');
+const kBid = document.getElementById('kBid');
+const kResultsRow = document.getElementById('kResultsRow');
+const kResults = document.getElementById('kResults');
+const WIEZEN_OPTIONS_HTML = contractTypeEl.innerHTML;
+const KLEUREN_OPTIONS_HTML = `
+  <option value="k_accept">Vraag &amp; meegaan (2 spelers)</option>
+  <option value="k_solo">Solo (1 speler)</option>
+  <option value="k_abondance">Abondance (1 speler)</option>
+  <option value="k_troel">Troel (2 spelers, 3 of 4 azen)</option>
+  <option value="k_kleine">Kleine miserie</option>
+  <option value="k_grote">Grote miserie</option>
+  <option value="k_open">Open miserie</option>
+  <option value="k_piccolo">Piccolo</option>
+  <option value="k_slim">Solo slim (13 slagen)</option>`;
 
-function contractNeedsTwoPlayers(type){ return type === 'vraagMeegaan' || type === 'troel'; }
-function contractIsFixed(type){ return ['abondance','miserie','miserieTafel','soloslim'].includes(type); }
+const isK = t => typeof t === 'string' && t.startsWith('k_');
+function contractNeedsTwoPlayers(type){ return type === 'vraagMeegaan' || type === 'troel' || type === 'k_accept' || type === 'k_troel'; }
+function contractAllowsMany(type){ return !!(KTYPES[type] && KTYPES[type].kind === 'pf'); }
+function contractIsFixed(type){ return ['abondance','miserie','miserieTafel','soloslim','k_slim'].includes(type); }
+
+function setDubbelTexts(){
+  const k = variant === 'kleuren';
+  document.getElementById('dubbelLabel').textContent = k ? 'Dubbel na pasronde? (0 = nee, 1 = ja)' : "Aantal keer 'pas' (dubbel geteld)";
+  document.getElementById('dubbelNote').textContent = k
+    ? 'Na een pasronde telt het volgende spel dubbel. Meerdere pasrondes na elkaar verdubbelen maar één keer.'
+    : "Elke 'pas' verdubbelt de punten van deze ronde opnieuw: 1x pas = ×2, 2x pas = ×4, 3x pas = ×8, ...";
+  dubbelCountInput.max = k ? 1 : 6;
+  if(k && (parseInt(dubbelCountInput.value, 10) || 0) > 1) dubbelCountInput.value = 1;
+}
+function setVariant(v){
+  variant = v;
+  document.querySelectorAll('#variantSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.variant === v));
+  contractTypeEl.innerHTML = v === 'kleuren' ? KLEUREN_OPTIONS_HTML : WIEZEN_OPTIONS_HTML;
+  if(v === 'wiezen') tricksInput.value = 8;
+  setDubbelTexts();
+  updateFormVisibility();
+}
 
 function renderPlayerInputs(){
   const dateInput = document.getElementById('gameDate');
@@ -616,7 +804,8 @@ function renderDeclPicker(){
   declPicker.innerHTML = '';
   const type = contractTypeEl.value;
   const needTwo = contractNeedsTwoPlayers(type);
-  declLabel.textContent = needTwo ? 'Wie speelt dit contract samen? (kies 2)' : 'Wie speelt dit contract?';
+  const many = contractAllowsMany(type);
+  declLabel.textContent = needTwo ? 'Wie speelt dit contract samen? (kies 2)' : many ? 'Wie speelt mee? (één of meer spelers)' : 'Wie speelt dit contract?';
   state.players.forEach((name, i) => {
     const chip = document.createElement('div');
     chip.className = 'decl-chip' + (selectedDeclarers.includes(i) ? ' selected' : '');
@@ -628,6 +817,8 @@ function renderDeclPicker(){
         if(needTwo){
           if(selectedDeclarers.length >= 2) selectedDeclarers.shift();
           selectedDeclarers.push(i);
+        } else if(many){
+          selectedDeclarers.push(i);
         } else {
           selectedDeclarers = [i];
         }
@@ -636,17 +827,56 @@ function renderDeclPicker(){
     });
     declPicker.appendChild(chip);
   });
+  renderKResults();
+}
+
+function renderKResults(){
+  kResults.innerHTML = '';
+  selectedDeclarers.forEach(i => {
+    const row = document.createElement('div');
+    row.className = 'res-row';
+    const nm = document.createElement('span');
+    nm.textContent = state.players[i];
+    const sel = document.createElement('select');
+    sel.innerHTML = '<option value="gemaakt">Gemaakt</option><option value="mislukt">Mislukt</option>';
+    sel.value = kResultState[i] || 'gemaakt';
+    sel.addEventListener('change', () => { kResultState[i] = sel.value; });
+    row.appendChild(nm);
+    row.appendChild(sel);
+    kResults.appendChild(row);
+  });
 }
 
 function updateFormVisibility(){
   const type = contractTypeEl.value;
+  const meta = KTYPES[type];
+  const k = isK(type) && !!meta;
+  const hasBid = k && !!meta.min;
+  const pf = k && meta.kind === 'pf';
   abondanceOptions.classList.toggle('hidden', type !== 'abondance');
+  kBidRow.classList.toggle('hidden', !hasBid);
+  if(hasBid){
+    kBid.innerHTML = '';
+    for(let n = meta.min; n <= meta.max; n++){
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n + ' slagen';
+      kBid.appendChild(o);
+    }
+    kBid.value = meta.min;
+    tricksInput.value = meta.min;
+  } else if(type === 'k_troel'){
+    tricksInput.value = settings.kleuren.troelMin;
+  }
   const fixed = contractIsFixed(type);
   fixedResultRow.classList.toggle('hidden', !fixed);
-  tricksRow.classList.toggle('hidden', fixed);
+  kResultsRow.classList.toggle('hidden', !pf);
+  tricksRow.classList.toggle('hidden', fixed || pf);
   selectedDeclarers = [];
+  kResultState = {};
   renderDeclPicker();
 }
+kBid.addEventListener('change', () => { tricksInput.value = kBid.value; });
+document.querySelectorAll('#variantSeg .seg-btn').forEach(b => b.addEventListener('click', () => setVariant(b.dataset.variant)));
 
 contractTypeEl.addEventListener('change', updateFormVisibility);
 
@@ -655,6 +885,7 @@ function resetRoundFormState(){
   btnVoegToe.textContent = 'Ronde toevoegen';
   roundEditNote.classList.add('hidden');
   selectedDeclarers = [];
+  kResultState = {};
   dubbelCountInput.value = 0;
   renderDeclPicker();
 }
@@ -665,18 +896,21 @@ function editRound(idx){
   const round = state.rounds[idx];
   if(!round) return;
   editingIndex = idx;
+  setVariant(round.variant === 'kleuren' ? 'kleuren' : 'wiezen');
   contractTypeEl.value = round.type;
   updateFormVisibility();
   selectedDeclarers = round.declarers.slice();
+  kResultState = Object.assign({}, round.results || {});
   renderDeclPicker();
   dubbelCountInput.value = round.dubbelCount || 0;
+  if(isK(round.type) && round.N) kBid.value = round.N;
   if(round.type === 'abondance'){
     document.getElementById('abondanceTricks').value = round.abondanceTricks;
     document.getElementById('abondanceTroef').checked = !!round.abondanceTroef;
   }
   if(contractIsFixed(round.type)){
     document.getElementById('fixedResult').value = round.fixedResult;
-  } else {
+  } else if(round.tricks != null){
     tricksInput.value = round.tricks;
   }
   btnVoegToe.textContent = 'Ronde bijwerken';
@@ -705,8 +939,27 @@ btnVoegToe.addEventListener('click', () => {
     showToast('Kies precies 2 spelers voor dit contract.');
     return;
   }
-  if(!needTwo && selectedDeclarers.length !== 1){
+  if(contractAllowsMany(type) && selectedDeclarers.length < 1){
+    showToast('Kies minstens 1 speler voor dit contract.');
+    return;
+  }
+  if(!needTwo && !contractAllowsMany(type) && selectedDeclarers.length !== 1){
     showToast('Kies 1 speler voor dit contract.');
+    return;
+  }
+  if(isK(type)){
+    const meta = KTYPES[type];
+    const kround = { type, variant:'kleuren', declarers: selectedDeclarers.slice(), dubbelCount: Math.min(1, parseInt(dubbelCountInput.value, 10) || 0) };
+    if(meta.min) kround.N = parseInt(kBid.value, 10);
+    if(meta.kind === 'pf'){
+      kround.results = {};
+      selectedDeclarers.forEach(i => { kround.results[i] = kResultState[i] || 'gemaakt'; });
+    } else if(type === 'k_slim'){
+      kround.fixedResult = document.getElementById('fixedResult').value;
+    } else {
+      kround.tricks = parseInt(tricksInput.value, 10) || 0;
+    }
+    commitRound(kround);
     return;
   }
   const round = { type, declarers: selectedDeclarers.slice(), dubbelCount: parseInt(dubbelCountInput.value, 10) || 0 };
@@ -724,6 +977,10 @@ btnVoegToe.addEventListener('click', () => {
     round.tricks = parseInt(tricksInput.value, 10) || 0;
   }
 
+  commitRound(round);
+});
+
+function commitRound(round){
   const deltas = computeRound(round);
   round.deltas = deltas;
 
@@ -736,7 +993,7 @@ btnVoegToe.addEventListener('click', () => {
   recomputeTotals();
   persistState();
   renderAll();
-});
+}
 
 document.getElementById('btnUndo').addEventListener('click', () => {
   if(state.rounds.length === 0) return;
@@ -760,7 +1017,7 @@ document.getElementById('btnEindSpel').addEventListener('click', () => {
     const running = state.players.map(() => 0);
     const progression = state.rounds.map(r => {
       r.deltas.forEach((d,i) => { running[i] += d; });
-      return { label: contractLabel(r), deltas: r.deltas.slice(), totals: running.slice() };
+      return { label: contractLabel(r), deltas: r.deltas.slice(), totals: running.slice(), variant: r.variant === 'kleuren' ? 'kleuren' : 'wiezen' };
     });
 
     await addFinishedGame({
@@ -904,30 +1161,60 @@ function renderHistory(){
   });
 }
 
+let yearFilter = String(new Date().getFullYear());
 function renderOverallStandings(){
   const container = document.getElementById('overallStandings');
-  if(history.length === 0){
-    container.innerHTML = '<div class="empty-msg">Speel en sluit een spel af om het klassement te zien.</div>';
+  const sel = document.getElementById('yearSelect');
+  const banner = document.getElementById('winnerBanner');
+  const title = document.getElementById('overallTitle');
+  const thisYear = String(new Date().getFullYear());
+  const years = Array.from(new Set(history.map(g => (g.date || '').slice(0,4)).filter(Boolean).concat([thisYear]))).sort().reverse();
+  if(yearFilter !== 'all' && !years.includes(yearFilter)) yearFilter = thisYear;
+  sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('') + '<option value="all">Alle jaren</option>';
+  sel.value = yearFilter;
+  title.textContent = yearFilter === 'all' ? 'Totaalklassement (alle jaren)' : 'Klassement ' + yearFilter;
+  banner.innerHTML = '';
+  const games = history.filter(g => yearFilter === 'all' || (g.date || '').slice(0,4) === yearFilter);
+  if(games.length === 0){
+    container.innerHTML = '<div class="empty-msg">Nog geen afgesloten partijen in deze periode. Speel en sluit een spel af om het klassement te zien.</div>';
     return;
   }
-  const totals = {};
-  const wins = {};
-  history.forEach(game => {
+  const totals = {}, wins = {}, split = {};
+  let hasKleuren = false;
+  const bump = (name, v, d) => { split[name] = split[name] || {wiezen:0, kleuren:0}; split[name][v] += d; };
+  games.forEach(game => {
     game.ranking.forEach((r, i) => {
       totals[r.name] = (totals[r.name] || 0) + r.score;
       if(i === 0) wins[r.name] = (wins[r.name] || 0) + 1;
     });
+    if(game.progression && game.progression.length){
+      game.progression.forEach(p => {
+        const v = p.variant === 'kleuren' ? 'kleuren' : 'wiezen';
+        if(v === 'kleuren') hasKleuren = true;
+        p.deltas.forEach((d, pi) => bump(game.players[pi], v, d));
+      });
+    } else {
+      game.ranking.forEach(r => bump(r.name, 'wiezen', r.score));
+    }
   });
-  const rows = Object.keys(totals).map(name => ({name, score: totals[name], wins: wins[name]||0}))
+  const rows = Object.keys(totals).map(name => ({name, score: totals[name], wins: wins[name] || 0}))
     .sort((a,b) => b.score - a.score);
+  if(yearFilter !== 'all' && yearFilter < thisYear){
+    const winners = rows.filter(r => r.score === rows[0].score).map(r => r.name).join(' & ');
+    banner.innerHTML = `<div class="winner">🏆 Winnaar ${yearFilter}: ${winners}</div>`;
+  }
   container.innerHTML = '';
   rows.forEach((r, idx) => {
     const div = document.createElement('div');
-    div.className = 'standing-row' + (idx===0 ? ' lead' : '');
-    div.innerHTML = `<span><span class="rank">#${idx+1}</span><span class="name">${r.name}</span></span><span class="pts">${r.score>0?'+':''}${r.score} <span style="font-size:11px;color:#a08a6a;">(${r.wins}x 1e)</span></span>`;
+    div.className = 'standing-row' + (r.score === rows[0].score ? ' lead' : '');
+    const sp = split[r.name] || {wiezen:0, kleuren:0};
+    const fmt = n => (n > 0 ? '+' : '') + n;
+    const splitHtml = hasKleuren ? `<span class="vsplit">wiezen ${fmt(sp.wiezen)} · kleurenwiezen ${fmt(sp.kleuren)}</span>` : '';
+    div.innerHTML = `<span><span class="rank">#${idx+1}</span><span class="name">${r.name}</span></span><span class="pts">${fmt(r.score)} <span style="font-size:11px;color:#a08a6a;">(${r.wins}x 1e)</span>${splitHtml}</span>`;
     container.appendChild(div);
   });
 }
+document.getElementById('yearSelect').addEventListener('change', (e) => { yearFilter = e.target.value; renderOverallStandings(); });
 
 document.getElementById('btnResetHistory').addEventListener('click', () => {
   showConfirm('Weet je zeker dat je het volledige klassement wil wissen? Dit kan niet ongedaan gemaakt worden.', async () => {
@@ -941,6 +1228,13 @@ function renderSettings(){
   const grid = document.getElementById('settingsGrid');
   grid.innerHTML = '';
   SETTINGS_LABELS.forEach(([path, label]) => {
+    if(path === '---'){
+      const h = document.createElement('div');
+      h.className = 'settings-head';
+      h.textContent = label;
+      grid.appendChild(h);
+      return;
+    }
     const lab = document.createElement('div');
     lab.textContent = label;
     const inp = document.createElement('input');
